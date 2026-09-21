@@ -28,6 +28,10 @@ _Avoid_: Tool wrapping, profile enforcement
 A curated semantic adaptation of an agent definition from the nicobailon `pi-subagents` package. It uses only `@gotgenes/pi-subagents` core capability tools and relies on upstream for parent-coordination protocol tools.
 _Avoid_: Built-in agent, default agent, copied agent
 
+**Child Protocol**:
+The parent-coordination channel installed by `@gotgenes/pi-subagents` independently of an agent's capability allowlist. Every child can ask its parent for blocking information, and can send one-way material updates while mid-run updates are enabled.
+_Avoid_: Coordination tools, supervisor bridge
+
 **Agent Sync**:
 An explicit user action that reconciles extension-managed bundled agents in the user's agent directory. It updates and removes only files owned by Pi Subagents Plus and refuses to overwrite unmanaged collisions.
 _Avoid_: Install, automatic provisioning
@@ -35,3 +39,7 @@ _Avoid_: Install, automatic provisioning
 **Owned Agent File**:
 A synced agent definition marked as managed by Pi Subagents Plus and carrying the hash of its generated content. Agent Sync can reconcile an unchanged owned file but treats local edits and unmarked same-named files as conflicts.
 _Avoid_: User agent
+
+**Interactive Test Instance**:
+A disposable Pi process with an isolated agent directory, home directory, and neutral workspace that loads only the companion, its upstream runtime, and test model configuration. It isolates Pi configuration but is not a security sandbox.
+_Avoid_: Test sandbox, development Pi

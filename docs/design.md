@@ -167,6 +167,12 @@ The ports preserve each role's purpose and important constraints while translati
 
 Bundled agents list only `@gotgenes/pi-subagents` core capability tools. They do not list `ask_parent` or `notify_parent`; upstream installs those protocol tools independently according to its runtime policy.
 
+Every bundled-agent prompt initially carries this minimal reminder:
+
+> Parent coordination: `ask_parent` is available; `notify_parent` is available when mid-run updates are enabled. Follow their tool descriptions when coordination is needed. These protocol tools are supplied independently of this agent's capability allowlist.
+
+The reminder deliberately leaves detailed behavior in the runtime-owned tool descriptions. Interactive smoke testing covers both channels. If either focused scenario fails twice for the current ports and test profile, replace the reminder in all six prompts with one shared detailed protocol block rather than adding role-specific variants.
+
 Initial frontmatter defaults are:
 
 | Agent        | Capability tools                                      | Thinking | Prompt mode | Inherit context |
@@ -182,7 +188,7 @@ Model defaults, turn limits, background defaults, and locks are omitted. Model p
 
 The researcher retains web research as its purpose but uses available command-line utilities through `bash`. Its prompt requires primary-source evidence, clear attribution, and an explicit limitation report when the environment lacks suitable network or search utilities.
 
-Prompts use upstream `ask_parent` semantics for blocking decisions and `notify_parent` semantics only when that tool is present. They do not mention nicobailon-specific supervisors, workflows, artifacts, settings, or extension-loading behavior.
+Prompts do not mention nicobailon-specific supervisors, workflows, artifacts, settings, or extension-loading behavior. Runtime tool descriptions remain authoritative for `ask_parent` and `notify_parent` semantics.
 
 ## Agent Sync
 
@@ -256,11 +262,77 @@ Failures are explicit and local:
 
 User-facing errors identify the command, profile or path, failed condition, and required corrective action.
 
+## Interactive testing
+
+`scripts/interactive-test.ts` launches an Interactive Test Instance for human TUI smoke testing. `package.json` exposes it as `bun run test:interactive`; it is not part of `bun run verify`.
+
+The repository pins `@gotgenes/pi-subagents@21.7.4` as a development dependency. The launcher resolves absolute paths to that package and this repository, then loads both as local package roots through the temporary `settings.json`. It performs no package installation and runs with `PI_OFFLINE=1`.
+
+### Required inputs
+
+The launcher requires these environment variables and never supplies defaults:
+
+- `OPENROUTER_API_KEY`: the dedicated one-hour, credit-limited key;
+- `PI_TEST_PARENT_MODEL`: the parent's exact `openrouter/...` model identifier;
+- `PI_TEST_AGENT_MODEL`: the profile's exact `openrouter/...` model identifier.
+
+Both identifiers must begin with `openrouter/` and must differ. The key is passed only in the child process environment; the launcher never prints it, writes it, or places it in process arguments. Because child `bash` tools inherit process environment and retain host filesystem access, the short-lived restricted key is a risk control rather than a sandbox boundary.
+
+### Temporary layout
+
+The launcher creates one temporary root with:
+
+```text
+<root>/
+├── home/
+├── agent/
+│   ├── settings.json
+│   ├── subagents.json
+│   └── profiles/pi-subagents-plus/smoke.json
+└── workspace/
+```
+
+The child receives the temporary `home/` as `HOME`, `agent/` as `PI_CODING_AGENT_DIR`, and `workspace/` as its working directory. A sanitized environment passes only required Pi/OpenRouter values plus the minimum path, terminal, locale, shell, and temporary-directory variables needed by the TUI and child commands. It does not inherit unrelated API tokens or cloud credentials.
+
+The temporary `settings.json`:
+
+- selects the parent OpenRouter model and enables only the parent and agent model identifiers;
+- loads the repository root and pinned upstream root through `packages`;
+- sets `defaultProjectTrust` to `never` and `defaultTools` to an empty array;
+- disables cache warming and install telemetry.
+
+The temporary `subagents.json` sets `maxConcurrent` to `2`, `defaultMaxTurns` to `12`, and `midRunUpdates` to `true`. Normal Pi retry behavior remains enabled. The generated `smoke` Model Profile maps all six Bundled Agents to `PI_TEST_AGENT_MODEL` with `thinking: "low"`.
+
+The process starts with no user agent files. The operator must exercise Agent Sync before spawning a bundled type.
+
+### Launch and cleanup
+
+The launcher runs the repository-local Pi executable as a real TUI with `--no-session`, `--no-approve`, `--no-skills`, `--no-prompt-templates`, `--no-themes`, and `--no-context-files`. It forwards termination signals to the child and restores the terminal before cleanup.
+
+The temporary root is removed after normal or signaled exit. Setting `KEEP_PI_TEST_DIR=1` preserves it and prints its path. The launcher does not write the OpenRouter key there; because child tools can write arbitrary content, preserved directories must still be treated as potentially sensitive.
+
+### Printed smoke checklist
+
+Before launch, the script prints an ordered checklist that covers:
+
+1. profile listing and inspection;
+2. empty Agent Sync status, synchronization, and unchanged status;
+3. activation of `smoke` and visible parent-to-child model/thinking change;
+4. an explicit invocation override retaining precedence;
+5. a blocking-information scenario where the child calls `ask_parent`, ends its turn, and continues after resume;
+6. a material wrong-premise scenario where a running child calls `notify_parent` and continues;
+7. `/reload` clearing the Active Model Profile;
+8. agent removal confirmation and final empty status.
+
+Run each child-protocol scenario twice before declaring the minimal reminder ineffective. A failure is incorrect channel behavior, not merely different prose: `ask_parent` must end the child's turn and preserve resumability, while `notify_parent` must be one-way, material-only, and followed by continued work.
+
 ## Implementation shape
 
 Keep the extension flat until concrete capabilities justify files. A suitable initial split is:
 
 ```text
+scripts/
+└── interactive-test.ts      # isolated human TUI smoke launcher
 src/
 ├── index.ts                 # synchronous registration and instance-local state
 ├── profiles.ts              # discovery, merge, validation, commands, injection
@@ -297,6 +369,16 @@ Required agent-sync evidence:
 - TUI confirmation and non-TUI `--yes` removal behavior;
 - all six packaged definitions parse under upstream frontmatter rules and expose the agreed defaults;
 - package artifact contains the bundled definitions and third-party notice.
+
+Required Interactive Test Instance evidence:
+
+- missing or equal model variables and a missing API key fail before creating a child process;
+- generated settings load only the two local packages and two OpenRouter models;
+- temporary `HOME`, agent directory, neutral workspace, offline mode, and resource-disabling flags reach the child process;
+- the API key is absent from generated files, printed output, and process arguments;
+- default cleanup, signal cleanup, and `KEEP_PI_TEST_DIR=1` retention behave as specified;
+- the printed checklist names every required manual observation, including two runs of each Child Protocol scenario;
+- a completed smoke run confirms model/thinking injection, explicit precedence, session-local reset after `/reload`, Agent Sync, ask/resume, notify/continue, and removal.
 
 The existing load test continues to prove that direct extension loading performs no extension-owned I/O. Before handoff, run:
 
