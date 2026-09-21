@@ -25,3 +25,17 @@ Give tools/commands useful descriptions, use Pi's `StringEnum` for model-facing 
 Test observable behavior without module mocks or method spies. Keep real loader tests isolated for the whole lifecycle. Add enabled/disabled, failure, async, TUI, and RPC evidence only for behavior the extension actually owns.
 
 Keep `scripts/package-check.mjs` focused on the published npm artifact: declared files, dependency topology, excluded development files, absolute-path leakage, and loading the installed tarball. Preserve pre-commit and CI's `npm ci` / `npm run verify` gates.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as GitHub issues in `smb374/pi-subagents-plus`, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles, each label string equal to its role name (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
