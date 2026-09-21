@@ -37,10 +37,10 @@
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "test:package": "node scripts/package-check.mjs",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
-    "verify": "npm run check && npm run test:package",
-    "prepack": "npm run verify"
+    "test:package": "bun scripts/package-check.mjs",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
+    "verify": "bun run check && bun run test:package",
+    "prepack": "bun run verify"
   },
   "dependencies": {},
   "devDependencies": {
@@ -66,7 +66,7 @@
   "engines": {
     "node": ">=22.19.0 <27"
   },
-  "packageManager": "npm@11.19.0",
+  "packageManager": "bun@1.4.2",
   "pi": {
     "extensions": [
       "./src/index.ts"

@@ -14,13 +14,15 @@ Start Pi normally. This scaffold does not yet add tools, commands, or other beha
 
 ## Development
 
+Requires [Bun](https://bun.sh) for dependency management and scripts.
+
 ```sh
 just setup
 just install
 just coverage
 ```
 
-`src/index.ts` is the direct TypeScript entry; `npm run verify` checks source, tests, and the installed npm artifact.
+`src/index.ts` is the direct TypeScript entry; `bun run verify` checks source, tests, and the packaged artifact.
 
 
 ## License

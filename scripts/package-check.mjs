@@ -11,7 +11,7 @@ import { Value } from "typebox/value";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
+const bunExecutable = process.platform === "win32" ? "bun.exe" : "bun";
 
 const SettingsManifestSchema = Type.Object({
     definition: Type.String(),
@@ -28,14 +28,25 @@ const PackageManifestSchema = Type.Object({
     pi: Type.Object({ extensions: Type.Array(Type.String(), { minItems: 1 }) }),
     piExtensionSettings: Type.Optional(SettingsManifestSchema),
 });
-const PackDescriptionSchema = Type.Object({
-    filename: Type.String(),
-    files: Type.Array(Type.Object({ path: Type.String() })),
-});
-const PackOutputSchema = Type.Union([
-    Type.Array(PackDescriptionSchema, { minItems: 1 }),
-    Type.Record(Type.String(), PackDescriptionSchema),
-]);
+const PackedFileLine = /^packed\s+\S+\s+(.+)$/u;
+
+/**
+ * @param {string} packListing
+ * @returns {string[]}
+ */
+function parsePackedPaths(packListing) {
+    const paths = [];
+
+    for (const line of packListing.split("\n")) {
+        const packedPath = PackedFileLine.exec(line)?.[1];
+
+        if (packedPath !== undefined) paths.push(packedPath);
+    }
+
+    if (paths.length === 0) throw new Error("bun pm pack --dry-run listed no packed files");
+
+    return paths;
+}
 
 const packageManifest = Value.Parse(
     PackageManifestSchema,
@@ -47,16 +58,20 @@ const consumerDirectory = path.join(temporaryRoot, "consumer");
 
 try {
     await mkdir(packDirectory, { recursive: true });
-    const { stdout } = await execFileAsync(
-        npmExecutable,
-        ["pack", "--pack-destination", packDirectory, "--ignore-scripts", "--json"],
+    const { stdout: packListing } = await execFileAsync(
+        bunExecutable,
+        ["pm", "pack", "--dry-run", "--ignore-scripts"],
         { cwd: packageRoot, encoding: "utf8" },
     );
-    const packOutput = Value.Parse(PackOutputSchema, JSON.parse(stdout));
-    const packed = Array.isArray(packOutput) ? packOutput[0] : Object.values(packOutput)[0];
-    if (packed === undefined) throw new Error("npm pack did not describe an artifact");
+    const { stdout: packOutput } = await execFileAsync(
+        bunExecutable,
+        ["pm", "pack", "--quiet", "--ignore-scripts", "--destination", packDirectory],
+        { cwd: packageRoot, encoding: "utf8" },
+    );
+    const packedFilename = path.basename(packOutput.trim());
+    if (!packedFilename.endsWith(".tgz")) throw new Error("bun pm pack did not produce a tarball");
 
-    const files = new Set(packed.files.map((file) => file.path));
+    const files = new Set(parsePackedPaths(packListing));
     const configuredPaths = [packageManifest.main, ...packageManifest.pi.extensions];
     if (packageManifest.piExtensionSettings !== undefined) {
         configuredPaths.push(
@@ -69,15 +84,15 @@ try {
     for (const configuredPath of configuredPaths) {
         const packedPath = configuredPath.replace(/^\.\//u, "");
         if (!files.has(packedPath)) {
-            throw new Error(`npm package is missing declared file: ${packedPath}`);
+            throw new Error(`package artifact is missing declared file: ${packedPath}`);
         }
     }
     for (const file of files) {
         if (file.startsWith("node_modules/") || file.includes("/node_modules/")) {
-            throw new Error(`npm package contains a nested dependency: ${file}`);
+            throw new Error(`package artifact contains a nested dependency: ${file}`);
         }
         if (file.startsWith("test/") || file.startsWith("scripts/")) {
-            throw new Error(`npm package contains development-only files: ${file}`);
+            throw new Error(`package artifact contains development-only files: ${file}`);
         }
     }
 
@@ -88,7 +103,9 @@ try {
         const content = await readFile(path.join(packageRoot, file), "utf8");
         for (const workspacePath of workspacePaths) {
             if (content.includes(workspacePath)) {
-                throw new Error(`npm package file contains an absolute workspace path: ${file}`);
+                throw new Error(
+                    `package artifact file contains an absolute workspace path: ${file}`,
+                );
             }
         }
     }
@@ -99,14 +116,8 @@ try {
         `${JSON.stringify({ private: true, type: "module" }, undefined, 2)}\n`,
     );
     await execFileAsync(
-        npmExecutable,
-        [
-            "install",
-            "--ignore-scripts",
-            "--no-audit",
-            "--no-fund",
-            path.join(packDirectory, packed.filename),
-        ],
+        bunExecutable,
+        ["add", "--ignore-scripts", path.join(packDirectory, packedFilename)],
         { cwd: consumerDirectory, encoding: "utf8" },
     );
 

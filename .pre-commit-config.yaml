@@ -3,11 +3,11 @@ repos:
     hooks:
       - id: check
         name: check
-        entry: npm run check
+        entry: bun run check
         language: system
         pass_filenames: false
       - id: lint
         name: lint
-        entry: npm run lint
+        entry: bun run lint
         language: system
         pass_filenames: false

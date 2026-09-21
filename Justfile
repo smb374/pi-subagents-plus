@@ -7,9 +7,9 @@ help:
 
 # Install dependencies and Git hooks, then verify the project
 setup:
-    npm install
+    bun install
     pre-commit install
-    npm run verify
+    bun run verify
 
 # Install the extension into Pi
 install:
@@ -17,40 +17,40 @@ install:
 
 # Format code
 format:
-    npm run format
+    bun run format
 
 # Check code for lint issues
 lint:
-    npm run lint
+    bun run lint
 
 # Run tests
 test:
-    npm test
+    bun run test
 
 # Static type check with TypeScript
 typecheck:
-    npm run typecheck
+    bun run typecheck
 
 # Run source checks
 check:
-    npm run check
+    bun run check
 
-# Run all checks, including the npm package check
+# Run all checks, including the packaged artifact check
 verify:
-    npm run verify
+    bun run verify
 
-# Check the npm artifact contract
+# Check the packaged artifact contract
 package-check:
-    npm run test:package
+    bun run test:package
 
 # Run tests with coverage
 coverage:
-    npm run coverage
+    bun run coverage
 
 # Apply automatic lint fixes and format code
 fix:
-    npm run lint:fix
-    npm run format
+    bun run lint:fix
+    bun run format
 
 # Remove coverage and temporary output
 clean:
