@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,6 +69,8 @@ describe("Pi Subagents Plus extension", { concurrent: false }, () => {
                 .map(({ name }) => name)
                 .sort(),
         ).toEqual([
+            "subagents:agents:status",
+            "subagents:agents:sync",
             "subagents:profile:list",
             "subagents:profile:off",
             "subagents:profile:show",
@@ -76,6 +78,27 @@ describe("Pi Subagents Plus extension", { concurrent: false }, () => {
         ]);
     });
 
+    it("runs status without writes and sync creates only bundled agents", async () => {
+        const runner = await loadRunner();
+        const status = runner.getCommand("subagents:agents:status");
+        const sync = runner.getCommand("subagents:agents:sync");
+        if (status === undefined || sync === undefined)
+            throw new Error("The Agent Sync commands are not registered.");
+
+        await status.handler("", runner.createCommandContext());
+        expect((await readdir(agentDir)).filter((name) => name.endsWith(".md"))).toEqual([]);
+
+        await sync.handler("", runner.createCommandContext());
+        expect((await readdir(agentDir)).filter((name) => name.endsWith(".md")).sort()).toEqual([
+            "delegate.md",
+            "oracle.md",
+            "researcher.md",
+            "reviewer.md",
+            "scout.md",
+            "worker.md",
+        ]);
+        await status.handler("", runner.createCommandContext());
+    });
     it("completes profile names without JSON suffixes", async () => {
         await mkdir(path.join(agentDir, "profiles", "pi-subagents-plus"), { recursive: true });
         await writeFile(
