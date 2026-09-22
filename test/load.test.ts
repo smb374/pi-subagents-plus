@@ -63,5 +63,16 @@ describe("Pi Subagents Plus extension", { concurrent: false }, () => {
     it("loads the direct TypeScript entry without extension-owned I/O", async () => {
         const runner = await loadRunner();
         expect(runner.getAllRegisteredTools()).toEqual([]);
+        expect(
+            runner
+                .getRegisteredCommands()
+                .map(({ name }) => name)
+                .sort(),
+        ).toEqual([
+            "subagents:profile:list",
+            "subagents:profile:off",
+            "subagents:profile:show",
+            "subagents:profile:use",
+        ]);
     });
 });
