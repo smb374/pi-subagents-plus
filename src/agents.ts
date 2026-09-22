@@ -204,11 +204,14 @@ export async function runAgentCommand(
     }
     try {
         if (command === "status") {
-            const plan = await planAgentSync(getAgentDir(), await createBundledAgents());
+            const plan = await planAgentSync(
+                path.join(getAgentDir(), "agents"),
+                await createBundledAgents(),
+            );
             ctx.ui.notify(formatAgentPlan(plan, name));
             return;
         }
-        const { plan, result } = await syncAgentDirectory(getAgentDir());
+        const { plan, result } = await syncAgentDirectory(path.join(getAgentDir(), "agents"));
         const completed = result.completed.map(
             ({ action, name: agent }) => `completed ${action}: ${agent}.md`,
         );

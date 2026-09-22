@@ -86,10 +86,12 @@ describe("Pi Subagents Plus extension", { concurrent: false }, () => {
             throw new Error("The Agent Sync commands are not registered.");
 
         await status.handler("", runner.createCommandContext());
-        expect((await readdir(agentDir)).filter((name) => name.endsWith(".md"))).toEqual([]);
+        await expect(readdir(path.join(agentDir, "agents"))).rejects.toMatchObject({
+            code: "ENOENT",
+        });
 
         await sync.handler("", runner.createCommandContext());
-        expect((await readdir(agentDir)).filter((name) => name.endsWith(".md")).sort()).toEqual([
+        expect((await readdir(path.join(agentDir, "agents"))).sort()).toEqual([
             "delegate.md",
             "oracle.md",
             "researcher.md",
