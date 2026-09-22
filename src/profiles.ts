@@ -100,6 +100,19 @@ async function readDirectory(
     );
 }
 
+export async function completeProfileNames(
+    prefix: string,
+): Promise<{ value: string; label: string }[] | null> {
+    const profiles = await readDirectory(
+        path.join(getAgentDir(), "profiles", "pi-subagents-plus"),
+        "user",
+    );
+    const items = profiles
+        .filter(({ name }) => name.startsWith(prefix))
+        .map(({ name }) => ({ value: name, label: name }));
+    return items.length === 0 ? null : items;
+}
+
 async function discover(ctx: ExtensionContext): Promise<ProfileFile[]> {
     const user = await readDirectory(
         path.join(getAgentDir(), "profiles", "pi-subagents-plus"),

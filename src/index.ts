@@ -8,6 +8,11 @@ export default function extension(pi: ExtensionAPI): void {
     for (const command of ["list", "show", "use", "off"] as const) {
         pi.registerCommand(`subagents:profile:${command}`, {
             description: `${command} a Model Profile.`,
+            async getArgumentCompletions(prefix) {
+                if (command !== "show" && command !== "use") return null;
+                const { completeProfileNames } = await import("./profiles.ts");
+                return completeProfileNames(prefix);
+            },
             async handler(args, ctx) {
                 const { runProfileCommand } = await import("./profiles.ts");
                 await runProfileCommand(command, args, ctx, state, pi.getAllTools());

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,6 +73,22 @@ describe("Pi Subagents Plus extension", { concurrent: false }, () => {
             "subagents:profile:off",
             "subagents:profile:show",
             "subagents:profile:use",
+        ]);
+    });
+
+    it("completes profile names without JSON suffixes", async () => {
+        await mkdir(path.join(agentDir, "profiles", "pi-subagents-plus"), { recursive: true });
+        await writeFile(
+            path.join(agentDir, "profiles", "pi-subagents-plus", "smoke.json"),
+            '{"scout":{"model":"openrouter/a"}}',
+        );
+        const runner = await loadRunner();
+        const command = runner
+            .getRegisteredCommands()
+            .find(({ name }) => name === "subagents:profile:use");
+        if (command === undefined) throw new Error("The use command is not registered.");
+        await expect(command.getArgumentCompletions?.("sm")).resolves.toEqual([
+            { value: "smoke", label: "smoke" },
         ]);
     });
 });
