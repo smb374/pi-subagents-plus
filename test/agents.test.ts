@@ -69,7 +69,7 @@ describe("Agent Sync", () => {
                     ? "unmanaged"
                     : kind === "malformed"
                       ? scout.content.replace(
-                            "pi-subagents-plus-owner: @smb374/pi-subagents-plus\n",
+                            "pi-subagents-plus-owner: github:smb374/pi-subagents-plus\n",
                             "",
                         )
                       : scout.content.replace(

@@ -10,7 +10,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 const AGENT_NAMES = ["scout", "delegate", "researcher", "worker", "reviewer", "oracle"] as const;
-const OWNER = "@smb374/pi-subagents-plus";
+const OWNER = "github:smb374/pi-subagents-plus";
 const SOURCE = "nicobailon/pi-subagents@v0.70.1";
 const HASH_KEY = "pi-subagents-plus-hash";
 const OWNER_KEY = "pi-subagents-plus-owner";
