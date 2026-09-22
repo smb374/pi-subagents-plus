@@ -45,6 +45,7 @@
   "dependencies": {},
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "^0.86.1",
+    "@gotgenes/pi-subagents": "^21.7.5",
     "@types/node": "^22.19.0",
     "@vitest/coverage-v8": "^4.1.10",
     "oxfmt": "^0.66.0",
