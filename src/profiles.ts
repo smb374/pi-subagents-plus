@@ -38,7 +38,8 @@ function isThinking(value: unknown): value is Thinking {
 export function validateProfile(value: unknown): Validation {
     if (!isRecord(value) || Object.keys(value).length === 0)
         return { ok: false, error: "must contain at least one selector" };
-    const profile: ModelProfile = {};
+    // oxlint-disable-next-line antislop/no-known-value-widening, typescript/no-unsafe-assignment -- Object.create makes a null-prototype dictionary for arbitrary selectors.
+    const profile: ModelProfile = Object.create(null);
     const selectors = new Set<string>();
     for (const [selector, entry] of Object.entries(value)) {
         const folded = selector.toLocaleLowerCase();
@@ -223,7 +224,14 @@ export async function runProfileCommand(
     report(ctx, `Active Model Profile: ${name}.`);
 }
 
-export function injectProfile(input: Record<string, unknown>, state: ProfileState): void {
+export type SubagentInput = {
+    subagent_type?: unknown;
+    model?: unknown;
+    thinking?: unknown;
+    resume?: unknown;
+};
+
+export function injectProfile(input: SubagentInput, state: ProfileState): void {
     const subagentType = input.subagent_type;
     if (
         state.active === undefined ||

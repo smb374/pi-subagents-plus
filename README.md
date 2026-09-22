@@ -10,8 +10,9 @@ pi install npm:@smb374/pi-subagents-plus
 
 ## Usage
 
-Start Pi normally. This scaffold does not yet add tools, commands, or other behavior.
+Model Profiles are JSON files in `$PI_CODING_AGENT_DIR/profiles/pi-subagents-plus/` or, for trusted projects, `.pi/profiles/pi-subagents-plus/`.
 
+Use `/subagents:profile:list`, `/subagents:profile:show [name]`, `/subagents:profile:use <name>`, and `/subagents:profile:off` to inspect and select profiles.
 ## Development
 
 Requires [Bun](https://bun.sh) for dependency management and scripts.
