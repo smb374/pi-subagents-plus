@@ -72,6 +72,16 @@ try {
     if (!packedFilename.endsWith(".tgz")) throw new Error("bun pm pack did not produce a tarball");
 
     const files = new Set(parsePackedPaths(packListing));
+    const bundledAgents = ["scout", "delegate", "researcher", "worker", "reviewer", "oracle"];
+    const bundledRequiredPaths = [
+        ...bundledAgents.map((agent) => `src/agents/${agent}.md`),
+        "src/agents/THIRD-PARTY-NOTICE.md",
+    ];
+    for (const bundledPath of bundledRequiredPaths) {
+        if (!files.has(bundledPath)) {
+            throw new Error(`package artifact is missing bundled agent file: ${bundledPath}`);
+        }
+    }
     const configuredPaths = [packageManifest.main, ...packageManifest.pi.extensions];
     if (packageManifest.piExtensionSettings !== undefined) {
         configuredPaths.push(
