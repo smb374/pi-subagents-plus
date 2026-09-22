@@ -21,6 +21,7 @@ export type AgentAction = "create" | "update" | "unchanged" | "conflict";
 export type GeneratedAgent = { name: (typeof AGENT_NAMES)[number]; content: string };
 export type AgentPlan = { name: GeneratedAgent["name"]; path: string; action: AgentAction };
 type SafeAction = Extract<AgentAction, "create" | "update">;
+
 export type AgentSyncResult = {
     completed: Array<{ name: string; action: SafeAction }>;
     failed: Array<{ name: string; action: SafeAction; error: string }>;
@@ -39,6 +40,7 @@ function generatedContent(source: string): string {
     const end = normalized.indexOf("\n---\n");
     if (!normalized.startsWith("---\n") || end === -1)
         throw new Error("The bundled agent has invalid frontmatter.");
+
     const metadata = `${OWNER_KEY}: ${OWNER}\n${SOURCE_KEY}: ${SOURCE}`;
     const withoutHash = `${normalized.slice(0, end)}\n${metadata}\n${normalized.slice(end + 1)}`;
     return `${normalized.slice(0, end)}\n${metadata}\n${HASH_KEY}: ${hash(withoutHash)}\n${normalized.slice(end + 1)}`;
@@ -48,11 +50,13 @@ function ownedContent(content: string): string | undefined {
     const normalized = canonicalize(content);
     const end = normalized.indexOf("\n---\n");
     if (!normalized.startsWith("---\n") || end === -1) return undefined;
+
     const frontmatter = normalized.slice(4, end).split("\n");
     const value = (key: string): string | undefined => {
         const values = frontmatter
             .filter((line) => line.startsWith(`${key}: `))
             .map((line) => line.slice(key.length + 2));
+
         return values.length === 1 ? values[0] : undefined;
     };
     const owner = value(OWNER_KEY);
@@ -60,6 +64,7 @@ function ownedContent(content: string): string | undefined {
     const storedHash = value(HASH_KEY);
     if (owner !== OWNER || source !== SOURCE || storedHash === undefined) return undefined;
     if (!SHA256.test(storedHash)) return undefined;
+
     const withoutHash = normalized.replace(`${HASH_KEY}: ${storedHash}\n`, "");
     return hash(withoutHash) === storedHash ? withoutHash : undefined;
 }
@@ -73,6 +78,7 @@ async function inspect(target: string, desired: string): Promise<AgentAction> {
     try {
         const status = await lstat(target);
         if (!status.isFile() || status.isSymbolicLink()) return "conflict";
+
         const content = await readFile(target, "utf8");
         if (ownedContent(content) === undefined) return "conflict";
         return canonicalize(content) === desired ? "unchanged" : "update";
@@ -81,6 +87,7 @@ async function inspect(target: string, desired: string): Promise<AgentAction> {
         return "conflict";
     }
 }
+
 export async function createBundledAgents(): Promise<GeneratedAgent[]> {
     return Promise.all(
         AGENT_NAMES.map(async (name) => ({
@@ -109,18 +116,23 @@ export async function planAgentSync(
 
 async function writeAtomically(target: string, content: string, action: SafeAction): Promise<void> {
     await mkdir(path.dirname(target), { recursive: true });
+
     const temporary = path.join(
         path.dirname(target),
         `.${path.basename(target)}.${randomUUID()}.tmp`,
     );
+
     try {
         await writeFile(temporary, content, { encoding: "utf8", flag: "wx" });
+
         if (action === "create") {
             await link(temporary, target);
             return;
         }
+
         if ((await inspect(target, content)) !== "update")
             throw new Error("the path changed before replacement");
+
         // ponytail: Node lacks no-replace atomic update. Use renameat2(RENAME_EXCHANGE) when Node exposes it.
         await rename(temporary, target);
     } finally {
@@ -136,6 +148,7 @@ export async function applyAgentPlan(
     const result: AgentSyncResult = { completed: [], failed: [] };
     for (const entry of plan) {
         if (entry.action !== "create" && entry.action !== "update") continue;
+
         const agent = generated.get(entry.name);
         if (agent === undefined) {
             result.failed.push({
@@ -145,6 +158,7 @@ export async function applyAgentPlan(
             });
             continue;
         }
+
         const current = await inspect(entry.path, agent.content);
         if (current !== entry.action) {
             result.failed.push({
@@ -154,6 +168,7 @@ export async function applyAgentPlan(
             });
             continue;
         }
+
         try {
             await writeAtomically(entry.path, agent.content, entry.action);
             result.completed.push({ name: entry.name, action: entry.action });
@@ -165,6 +180,7 @@ export async function applyAgentPlan(
             });
         }
     }
+
     return result;
 }
 
@@ -200,8 +216,10 @@ export async function runAgentCommand(
             `${name}: this command takes no arguments. Remove the argument and try again.`,
             "error",
         );
+
         return;
     }
+
     try {
         if (command === "status") {
             const plan = await planAgentSync(
@@ -211,6 +229,7 @@ export async function runAgentCommand(
             ctx.ui.notify(formatAgentPlan(plan, name));
             return;
         }
+
         const { plan, result } = await syncAgentDirectory(path.join(getAgentDir(), "agents"));
         const completed = result.completed.map(
             ({ action, name: agent }) => `completed ${action}: ${agent}.md`,

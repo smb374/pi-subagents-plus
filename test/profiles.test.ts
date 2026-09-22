@@ -15,6 +15,7 @@ describe("model profile validation", () => {
     it("preserves a __proto__ selector as a validated entry", () => {
         const result = validateProfile(JSON.parse('{"__proto__":{"model":"openrouter/a"}}'));
         expect(result.ok).toBe(true);
+
         if (result.ok) expect(result.value.__proto__).toEqual({ model: "openrouter/a" });
     });
 
@@ -30,6 +31,7 @@ describe("model profile validation", () => {
     ])("rejects %j", (profile, error) => {
         const result = validateProfile(profile);
         expect(result.ok).toBe(false);
+
         if (!result.ok) expect(result.error).toContain(error);
     });
 });

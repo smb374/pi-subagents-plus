@@ -39,6 +39,7 @@ describe("Agent Sync", () => {
         const agents = await createBundledAgents();
         const scout = agents.find(({ name }) => name === "scout");
         if (scout === undefined) throw new Error("The scout agent is missing.");
+
         await writeFile(path.join(agentDir, "scout.md"), scout.content);
 
         const plan = await planAgentSync(agentDir, agents);
@@ -50,6 +51,7 @@ describe("Agent Sync", () => {
         const agents = await createBundledAgents();
         const scout = agents.find(({ name }) => name === "scout");
         if (scout === undefined) throw new Error("The scout agent is missing.");
+
         await writeFile(path.join(agentDir, "scout.md"), scout.content.replaceAll("\n", "\r\n"));
 
         const plan = await planAgentSync(agentDir, agents);
@@ -63,6 +65,7 @@ describe("Agent Sync", () => {
             const agents = await createBundledAgents();
             const scout = agents.find(({ name }) => name === "scout");
             if (scout === undefined) throw new Error("The scout agent is missing.");
+
             const target = path.join(agentDir, "scout.md");
             const content =
                 kind === "unmarked"

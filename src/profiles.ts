@@ -14,6 +14,7 @@ type Thinking = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 type ProfileEntry = { model: string; thinking?: Thinking };
 export type ModelProfile = Record<string, ProfileEntry>;
 export type ProfileState = { active?: { name: string; profile: ModelProfile } };
+
 type ProfileFile = {
     name: string;
     origin: "user" | "project";
@@ -24,6 +25,7 @@ type ProfileFile = {
 };
 
 type Validation = { ok: true; value: ModelProfile } | { ok: false; error: string };
+
 const THINKING = new Set<string>(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 const MODEL = /^[^/\s]+\/.+$/u;
 
@@ -38,6 +40,7 @@ function isThinking(value: unknown): value is Thinking {
 export function validateProfile(value: unknown): Validation {
     if (!isRecord(value) || Object.keys(value).length === 0)
         return { ok: false, error: "must contain at least one selector" };
+
     // oxlint-disable-next-line antislop/no-known-value-widening, typescript/no-unsafe-assignment -- Object.create makes a null-prototype dictionary for arbitrary selectors.
     const profile: ModelProfile = Object.create(null);
     const selectors = new Set<string>();
@@ -45,21 +48,27 @@ export function validateProfile(value: unknown): Validation {
         const folded = selector.toLocaleLowerCase();
         if (selectors.has(folded))
             return { ok: false, error: `selector '${selector}' collides case-insensitively` };
+
         selectors.add(folded);
+
         if (!isRecord(entry))
             return { ok: false, error: `selector '${selector}' must contain an object` };
+
         for (const key of Object.keys(entry))
             if (key !== "model" && key !== "thinking")
                 return { ok: false, error: `selector '${selector}' has an unknown field '${key}'` };
+
         if (typeof entry.model !== "string" || !MODEL.test(entry.model))
             return { ok: false, error: `selector '${selector}' model must be provider/model-id` };
         if (entry.thinking !== undefined && !isThinking(entry.thinking))
             return { ok: false, error: `selector '${selector}' has an invalid thinking value` };
+
         profile[selector] =
             entry.thinking === undefined
                 ? { model: entry.model }
                 : { model: entry.model, thinking: entry.thinking };
     }
+
     return { ok: true, value: profile };
 }
 
@@ -74,15 +83,18 @@ async function readDirectory(
         if (isRecord(error) && error.code === "ENOENT") return [];
         throw error;
     }
+
     return Promise.all(
         names
             .filter((name) => name.endsWith(".json"))
             .map(async (file) => {
                 const name = file.slice(0, -".json".length);
+
                 try {
                     const content = await readFile(path.join(directory, file), "utf8");
                     const parsed: unknown = JSON.parse(content);
                     const checked = validateProfile(parsed);
+
                     return checked.ok
                         ? { name, origin, profile: checked.value, content }
                         : { name, origin, error: checked.error, content };
@@ -110,6 +122,7 @@ export async function completeProfileNames(
     const items = profiles
         .filter(({ name }) => name.startsWith(prefix))
         .map(({ name }) => ({ value: name, label: name }));
+
     return items.length === 0 ? null : items;
 }
 
@@ -119,11 +132,13 @@ async function discover(ctx: ExtensionContext): Promise<ProfileFile[]> {
         "user",
     );
     if (!ctx.isProjectTrusted()) return user;
+
     const project = await readDirectory(
         path.join(ctx.cwd, CONFIG_DIR_NAME, "profiles", "pi-subagents-plus"),
         "project",
     );
     const userNames = new Set(user.map(({ name }) => name));
+
     return [
         ...user.filter(({ name }) => !project.some((profile) => profile.name === name)),
         ...project.map((profile) => ({ ...profile, hiddenUser: userNames.has(profile.name) })),
@@ -158,11 +173,13 @@ export async function runProfileCommand(
     tools: ToolInfo[],
 ): Promise<void> {
     const name = args.trim();
+
     if (command === "off") {
         delete state.active;
         report(ctx, "Model Profile is off.");
         return;
     }
+
     if (command === "show" && name.length === 0) {
         if (!upstreamAvailable(tools))
             report(
@@ -177,16 +194,20 @@ export async function runProfileCommand(
                     ? "No Active Model Profile."
                     : `${state.active.name}:\n${JSON.stringify(state.active.profile, undefined, 2)}`,
             );
+
         return;
     }
+
     const profiles = await discover(ctx);
     if (command === "list") {
         report(
             ctx,
             profiles.length === 0 ? "No Model Profiles." : profiles.map(profileText).join("\n"),
         );
+
         return;
     }
+
     const profile = profiles.find((candidate) => candidate.name === name);
     if (profile === undefined) {
         report(
@@ -194,31 +215,39 @@ export async function runProfileCommand(
             `subagents:profile:${command}: '${name}' was not found. Use subagents:profile:list.`,
             "error",
         );
+
         return;
     }
+
     if (command === "show") {
         report(ctx, `${profileText(profile)}\n${profile.content ?? ""}`);
         return;
     }
+
     if (!upstreamAvailable(tools)) {
         report(
             ctx,
             `subagents:profile:use: '${name}' needs a compatible subagent tool. Load the upstream runtime.`,
             "error",
         );
+
         return;
     }
+
     if (profile.error !== undefined || profile.profile === undefined) {
         report(
             ctx,
             `subagents:profile:use: '${name}' is invalid: ${profile.error ?? "unknown error"}. Fix the profile file.`,
             "error",
         );
+
         return;
     }
+
     for (const { model } of Object.values(profile.profile)) {
         const [provider, ...ids] = model.split("/");
         const modelId = ids.join("/");
+
         if (
             provider === undefined ||
             !ctx.modelRegistry
@@ -230,9 +259,11 @@ export async function runProfileCommand(
                 `subagents:profile:use: '${name}' model '${model}' is unavailable. Configure the provider and model.`,
                 "error",
             );
+
             return;
         }
     }
+
     state.active = { name, profile: structuredClone(profile.profile) };
     report(ctx, `Active Model Profile: ${name}.`);
 }
@@ -252,6 +283,7 @@ export function injectProfile(input: SubagentInput, state: ProfileState): void {
         typeof subagentType !== "string"
     )
         return;
+
     const entry = Object.entries(state.active.profile).find(
         ([selector]) => selector.toLocaleLowerCase() === subagentType.toLocaleLowerCase(),
     )?.[1];

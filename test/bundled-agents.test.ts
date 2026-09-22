@@ -83,6 +83,7 @@ type BundledFrontmatter = {
     prompt_mode?: string;
     inherit_context?: boolean;
 };
+
 async function readAgent(agent: (typeof BUNDLED_AGENTS)[number]) {
     const content = await readFile(path.join(agentsDir, `${agent}.md`), "utf8");
     return parseFrontmatter<BundledFrontmatter>(content);
@@ -106,6 +107,7 @@ describe("bundled agent definitions", () => {
             expect(frontmatter.tools?.split(",").map((tool) => tool.trim())).toEqual(
                 expected.tools,
             );
+
             expect(frontmatter.thinking).toBe(expected.thinking);
             expect(frontmatter.prompt_mode).toBe(expected.prompt_mode);
             expect(frontmatter.inherit_context).toBe(expected.inherit_context);
@@ -134,6 +136,7 @@ describe("bundled agent definitions", () => {
             for (const tool of tools) {
                 expect(UPSTREAM_BUILTIN_TOOLS.has(tool)).toBe(true);
             }
+
             expect(tools).not.toContain("ask_parent");
             expect(tools).not.toContain("notify_parent");
         });

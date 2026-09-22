@@ -19,6 +19,7 @@ const SettingsManifestSchema = Type.Object({
     schema: Type.String(),
     readme: Type.String(),
 });
+
 const PackageManifestSchema = Type.Object({
     name: Type.String(),
     main: Type.String(),
@@ -28,6 +29,7 @@ const PackageManifestSchema = Type.Object({
     pi: Type.Object({ extensions: Type.Array(Type.String(), { minItems: 1 }) }),
     piExtensionSettings: Type.Optional(SettingsManifestSchema),
 });
+
 const PackedFileLine = /^packed\s+\S+\s+(.+)$/u;
 
 /**
@@ -39,7 +41,6 @@ function parsePackedPaths(packListing) {
 
     for (const line of packListing.split("\n")) {
         const packedPath = PackedFileLine.exec(line)?.[1];
-
         if (packedPath !== undefined) paths.push(packedPath);
     }
 
@@ -58,6 +59,7 @@ const consumerDirectory = path.join(temporaryRoot, "consumer");
 
 try {
     await mkdir(packDirectory, { recursive: true });
+
     const { stdout: packListing } = await execFileAsync(
         bunExecutable,
         ["pm", "pack", "--dry-run", "--ignore-scripts"],
@@ -73,6 +75,7 @@ try {
 
     const files = new Set(parsePackedPaths(packListing));
     const bundledAgents = ["scout", "delegate", "researcher", "worker", "reviewer", "oracle"];
+
     const bundledRequiredPaths = [
         ...bundledAgents.map((agent) => `src/agents/${agent}.md`),
         "src/agents/THIRD-PARTY-NOTICE.md",
@@ -82,6 +85,7 @@ try {
             throw new Error(`package artifact is missing bundled agent file: ${bundledPath}`);
         }
     }
+
     const configuredPaths = [packageManifest.main, ...packageManifest.pi.extensions];
     if (packageManifest.piExtensionSettings !== undefined) {
         configuredPaths.push(
@@ -91,16 +95,19 @@ try {
             packageManifest.piExtensionSettings.readme,
         );
     }
+
     for (const configuredPath of configuredPaths) {
         const packedPath = configuredPath.replace(/^\.\//u, "");
         if (!files.has(packedPath)) {
             throw new Error(`package artifact is missing declared file: ${packedPath}`);
         }
     }
+
     for (const file of files) {
         if (file.startsWith("node_modules/") || file.includes("/node_modules/")) {
             throw new Error(`package artifact contains a nested dependency: ${file}`);
         }
+
         if (file.startsWith("test/") || file.startsWith("scripts/")) {
             throw new Error(`package artifact contains development-only files: ${file}`);
         }
@@ -110,6 +117,7 @@ try {
     const textExtensions = new Set([".js", ".json", ".map", ".md", ".mjs", ".ts"]);
     for (const file of files) {
         if (!textExtensions.has(path.extname(file))) continue;
+
         const content = await readFile(path.join(packageRoot, file), "utf8");
         for (const workspacePath of workspacePaths) {
             if (content.includes(workspacePath)) {
@@ -167,6 +175,7 @@ try {
         noThemes: true,
         noContextFiles: true,
     });
+
     await loader.reload();
     const loaded = loader.getExtensions();
     if (loaded.errors.length > 0 || loaded.extensions.length !== extensionPaths.length) {
