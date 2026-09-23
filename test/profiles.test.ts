@@ -59,4 +59,29 @@ describe("Model Profile injection", () => {
         injectProfile(input, state);
         expect(input).toEqual({ subagent_type: "scout", resume: "run-id" });
     });
+
+    it("treats whitespace-only optional fields as missing on a matching spawn", () => {
+        const input = { subagent_type: "scout", resume: "  ", model: "\t", thinking: " " };
+        injectProfile(input, state);
+        expect(input).toEqual({
+            subagent_type: "scout",
+            model: "openrouter/openai/gpt-5",
+            thinking: "low",
+        });
+    });
+
+    it("removes blank thinking when the matching profile has no thinking default", () => {
+        const input = { subagent_type: "scout", resume: "", model: "", thinking: "" };
+        injectProfile(input, {
+            active: { name: "model-only", profile: { scout: { model: "openrouter/a" } } },
+        });
+
+        expect(input).toEqual({ subagent_type: "scout", model: "openrouter/a" });
+    });
+
+    it("leaves unmatched calls unchanged even when optional fields are blank", () => {
+        const input = { subagent_type: "worker", resume: "", model: "", thinking: "" };
+        injectProfile(input, state);
+        expect(input).toEqual({ subagent_type: "worker", resume: "", model: "", thinking: "" });
+    });
 });

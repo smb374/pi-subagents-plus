@@ -276,10 +276,11 @@ export type SubagentInput = {
 };
 
 export function injectProfile(input: SubagentInput, state: ProfileState): void {
+    const blank = (value: unknown) => typeof value === "string" && value.trim() === "";
     const subagentType = input.subagent_type;
     if (
         state.active === undefined ||
-        input.resume !== undefined ||
+        (input.resume !== undefined && !blank(input.resume)) ||
         typeof subagentType !== "string"
     )
         return;
@@ -288,7 +289,11 @@ export function injectProfile(input: SubagentInput, state: ProfileState): void {
         ([selector]) => selector.toLocaleLowerCase() === subagentType.toLocaleLowerCase(),
     )?.[1];
     if (entry === undefined) return;
-    if (input.model === undefined) input.model = entry.model;
+
+    // ponytail: Normalize blanks only for matched spawns; upstream validates other calls.
+    if (blank(input.resume)) delete input.resume;
+    if (input.model === undefined || blank(input.model)) input.model = entry.model;
+    if (blank(input.thinking)) delete input.thinking;
     if (input.thinking === undefined && entry.thinking !== undefined)
         input.thinking = entry.thinking;
 }

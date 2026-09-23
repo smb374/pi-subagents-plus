@@ -157,6 +157,19 @@ describe("Pi Subagents Plus extension", { concurrent: false }, () => {
         });
         expect(matching).toEqual({ subagent_type: "scout", model: "test/model", thinking: "low" });
 
+        const blankFields = { subagent_type: "scout", resume: "", model: "", thinking: "" };
+        await runner.emitToolCall({
+            type: "tool_call",
+            toolCallId: "blank-fields",
+            toolName: "subagent",
+            input: blankFields,
+        });
+        expect(blankFields).toEqual({
+            subagent_type: "scout",
+            model: "test/model",
+            thinking: "low",
+        });
+
         const explicitModel = { subagent_type: "Scout", model: "call/model" };
         await runner.emitToolCall({
             type: "tool_call",
