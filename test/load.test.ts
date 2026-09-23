@@ -77,6 +77,7 @@ describe("Pi Subagents Plus extension", { concurrent: false }, () => {
                 .map(({ name }) => name)
                 .sort(),
         ).toEqual([
+            "subagents:agents:remove",
             "subagents:agents:status",
             "subagents:agents:sync",
             "subagents:profile:list",
@@ -108,6 +109,65 @@ describe("Pi Subagents Plus extension", { concurrent: false }, () => {
             "worker.md",
         ]);
         await status.handler("", runner.createCommandContext());
+    });
+    it("previews removal and requires exact consent outside the TUI", async () => {
+        const runner = await loadRunner();
+        const sync = runner.getCommand("subagents:agents:sync");
+        const remove = runner.getCommand("subagents:agents:remove");
+        if (sync === undefined || remove === undefined)
+            throw new Error("Agent commands are missing.");
+        const messages: string[] = [];
+        const ctx = runner.createCommandContext();
+        ctx.ui.notify = (message) => {
+            messages.push(message);
+        };
+        await sync.handler("", ctx);
+        const directory = path.join(agentDir, "agents");
+
+        for (const args of ["", "--YES", "yes", "--yes extra", "extra --yes"]) {
+            await remove.handler(args, ctx);
+            expect(await readdir(directory)).toHaveLength(6);
+        }
+        expect(
+            messages.some((message) =>
+                message.includes(`remove: ${path.join(directory, "scout.md")}`),
+            ),
+        ).toBe(true);
+        await remove.handler("--yes", ctx);
+        expect(await readdir(directory)).toEqual([]);
+        await remove.handler("", ctx);
+        expect(messages.at(-1)).toContain("create:");
+    });
+
+    it("uses a TUI confirmation and preserves files when declined", async () => {
+        const runner = await loadRunner();
+        const sync = runner.getCommand("subagents:agents:sync");
+        const remove = runner.getCommand("subagents:agents:remove");
+        if (sync === undefined || remove === undefined)
+            throw new Error("Agent commands are missing.");
+        const original = runner.createCommandContext();
+        await sync.handler("", original);
+        const prompts: string[] = [];
+        const ctx = {
+            ...original,
+            mode: "tui" as const,
+            hasUI: true,
+            ui: {
+                ...original.ui,
+                confirm: async (title: string, message: string) => {
+                    prompts.push(`${title}: ${message}`);
+                    if (prompts.length === 2)
+                        await writeFile(path.join(agentDir, "agents", "scout.md"), "user edit");
+                    return prompts.length > 1;
+                },
+            },
+        };
+
+        await remove.handler("", ctx);
+        expect(await readdir(path.join(agentDir, "agents"))).toHaveLength(6);
+        expect(prompts[0]).toContain("scout.md");
+        await remove.handler("", ctx);
+        expect(await readdir(path.join(agentDir, "agents"))).toEqual(["scout.md"]);
     });
 
     it("completes profile names without JSON suffixes", async () => {

@@ -22,12 +22,14 @@ export default function extension(pi: ExtensionAPI): void {
         });
     }
 
-    for (const command of ["status", "sync"] as const) {
+    for (const command of ["status", "sync", "remove"] as const) {
         pi.registerCommand(`subagents:agents:${command}`, {
             description:
                 command === "status"
                     ? "List the six managed agent files without changing them."
-                    : "Create or update only unchanged extension-owned agent files.",
+                    : command === "sync"
+                      ? "Create or update only unchanged extension-owned agent files."
+                      : "Preview and confirm removal of unchanged extension-owned agent files.",
             async handler(args, ctx) {
                 const { runAgentCommand } = await import("./agents.ts");
                 await runAgentCommand(command, args, ctx);

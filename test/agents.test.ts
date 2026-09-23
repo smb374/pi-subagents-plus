@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
     applyAgentPlan,
+    applyAgentRemoval,
     createBundledAgents,
     planAgentSync,
     type AgentPlan,
@@ -125,5 +126,58 @@ describe("Agent Sync", () => {
                 action: "unchanged" as const,
             })),
         );
+    });
+
+    it("removes only unchanged owned files and plans them as creates", async () => {
+        const agents = await createBundledAgents();
+        await applyAgentPlan(await planAgentSync(agentDir, agents), agents);
+        const edited = path.join(agentDir, "scout.md");
+        const unmanaged = path.join(agentDir, "delegate.md");
+        const editedContent = `${await readFile(edited, "utf8")}\nlocal edit`;
+        await writeFile(edited, editedContent);
+        await writeFile(unmanaged, "unmanaged");
+        const linked = path.join(agentDir, "worker.md");
+        await rm(linked);
+        await symlink(unmanaged, linked);
+        const malformed = path.join(agentDir, "reviewer.md");
+        const malformedContent = (await readFile(malformed, "utf8")).replace(
+            "pi-subagents-plus-owner: github:smb374/pi-subagents-plus\n",
+            "",
+        );
+        await writeFile(malformed, malformedContent);
+        const plan = await planAgentSync(agentDir, agents);
+
+        const result = await applyAgentRemoval(plan, agents);
+        expect(result.failed).toEqual([]);
+        expect(result.completed.map((target) => path.basename(target, ".md"))).toEqual([
+            "researcher",
+            "oracle",
+        ]);
+        expect(await readFile(edited, "utf8")).toBe(editedContent);
+        expect(await readFile(unmanaged, "utf8")).toBe("unmanaged");
+        expect((await lstat(linked)).isSymbolicLink()).toBe(true);
+        expect(await readFile(malformed, "utf8")).toBe(malformedContent);
+        expect((await planAgentSync(agentDir, agents)).map(({ action }) => action)).toEqual([
+            "conflict",
+            "conflict",
+            "create",
+            "conflict",
+            "conflict",
+            "create",
+        ]);
+    });
+
+    it("refuses to remove a file that changes after the plan", async () => {
+        const agents = await createBundledAgents();
+        await applyAgentPlan(await planAgentSync(agentDir, agents), agents);
+        const plan = await planAgentSync(agentDir, agents);
+        const target = path.join(agentDir, "scout.md");
+        await writeFile(target, `${await readFile(target, "utf8")}\nlocal edit`);
+
+        const result = await applyAgentRemoval(plan, agents);
+        expect(
+            result.failed.find(({ path: failedPath }) => failedPath === target)?.error,
+        ).toContain("changed");
+        expect((await planAgentSync(agentDir, agents))[0]?.action).toBe("conflict");
     });
 });

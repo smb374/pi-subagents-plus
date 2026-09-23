@@ -1,5 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
-import { link, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+    link,
+    lstat,
+    mkdir,
+    mkdtemp,
+    readFile,
+    rename,
+    rm,
+    rmdir,
+    writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +35,11 @@ type SafeAction = Extract<AgentAction, "create" | "update">;
 export type AgentSyncResult = {
     completed: Array<{ name: string; action: SafeAction }>;
     failed: Array<{ name: string; action: SafeAction; error: string }>;
+};
+
+type AgentRemovalResult = {
+    completed: string[];
+    failed: Array<{ path: string; error: string }>;
 };
 
 function canonicalize(content: string): string {
@@ -180,8 +195,78 @@ export async function applyAgentPlan(
             });
         }
     }
-
     return result;
+}
+
+export async function applyAgentRemoval(
+    plan: AgentPlan[],
+    agents: GeneratedAgent[],
+): Promise<AgentRemovalResult> {
+    const generated = new Map(agents.map((agent) => [agent.name, agent.content]));
+    const result: AgentRemovalResult = {
+        completed: [],
+        failed: [],
+    };
+    for (const entry of plan) {
+        if (entry.action !== "unchanged") continue;
+        const content = generated.get(entry.name);
+        if (content === undefined) {
+            result.failed.push({ path: entry.path, error: "the bundled agent is missing" });
+            continue;
+        }
+        try {
+            await withFileMutationQueue(entry.path, async () => {
+                const quarantine = await mkdtemp(
+                    path.join(path.dirname(entry.path), `.${path.basename(entry.path)}.remove-`),
+                );
+                const moved = path.join(quarantine, path.basename(entry.path));
+
+                try {
+                    await rename(entry.path, moved);
+                    const current = await inspect(moved, content);
+
+                    if (current !== "unchanged") {
+                        try {
+                            await link(moved, entry.path);
+                            await rm(moved);
+                        } catch (error: unknown) {
+                            throw new Error(
+                                `the path changed to ${current}; restore ${moved} to ${entry.path}: ${error instanceof Error ? error.message : "restore failed"}`,
+                            );
+                        }
+
+                        throw new Error(`the path changed from unchanged to ${current}`);
+                    }
+
+                    // ponytail: An external writer with an open handle can still change the moved inode. Use OS-level locks if this is a threat.
+                    await rm(moved);
+                } catch (error: unknown) {
+                    if ((await inspect(moved, content)) !== "create")
+                        throw new Error(
+                            `${error instanceof Error ? error.message : "removal failed"}; check ${moved} before retrying`,
+                        );
+                    throw error;
+                } finally {
+                    await rmdir(quarantine).catch((error: unknown) => {
+                        if (!isCode(error, "ENOTEMPTY")) throw error;
+                    });
+                }
+            });
+            result.completed.push(entry.path);
+        } catch (error: unknown) {
+            result.failed.push({
+                path: entry.path,
+                error: error instanceof Error ? error.message : "the file removal failed",
+            });
+        }
+    }
+    return result;
+}
+
+export async function removeAgentDirectory(agentDir: string, preview: AgentPlan[]) {
+    return withFileMutationQueue(agentDir, async () =>
+        applyAgentRemoval(preview, await createBundledAgents()),
+    );
 }
 
 export async function syncAgentDirectory(agentDir: string): Promise<{
@@ -206,11 +291,15 @@ export function formatAgentPlan(plan: AgentPlan[], command: string): string {
 }
 
 export async function runAgentCommand(
-    command: "status" | "sync",
+    command: "status" | "sync" | "remove",
     args: string,
     ctx: ExtensionCommandContext,
 ): Promise<void> {
     const name = `subagents:agents:${command}`;
+    if (command === "remove") {
+        await runAgentRemovalCommand(args, ctx);
+        return;
+    }
     if (args.trim().length > 0) {
         ctx.ui.notify(
             `${name}: this command takes no arguments. Remove the argument and try again.`,
@@ -244,5 +333,64 @@ export async function runAgentCommand(
     } catch (error: unknown) {
         const detail = error instanceof Error ? error.message : "an unknown error occurred";
         ctx.ui.notify(`${name}: ${detail}. Check the agent directory and try again.`, "error");
+    }
+}
+
+async function runAgentRemovalCommand(args: string, ctx: ExtensionCommandContext): Promise<void> {
+    const name = "subagents:agents:remove";
+    const directory = path.join(getAgentDir(), "agents");
+    if (args !== "" && args !== "--yes") {
+        ctx.ui.notify(
+            `${name}: invalid argument ${JSON.stringify(args)}. Use no argument for a preview or --yes for non-interactive removal.`,
+            "error",
+        );
+        return;
+    }
+    try {
+        const plan = await planAgentSync(directory, await createBundledAgents());
+        const targets = plan.filter(({ action }) => action === "unchanged");
+        const preview = plan
+            .map((entry) =>
+                entry.action === "unchanged"
+                    ? `remove: ${entry.path}`
+                    : formatAgentPlan([entry], name),
+            )
+            .join("\n");
+        ctx.ui.notify(`${name} preview:\n${preview}`);
+        if (targets.length === 0) return;
+        if (ctx.mode === "tui") {
+            if (
+                !ctx.hasUI ||
+                !(await ctx.ui.confirm(
+                    name,
+                    `Remove these unchanged owned agent files?\n${targets.map(({ path: target }) => target).join("\n")}`,
+                ))
+            ) {
+                ctx.ui.notify(`${name}: removal cancelled. No files were removed.`);
+                return;
+            }
+        } else if (args !== "--yes") {
+            ctx.ui.notify(
+                `${name}: no files were removed. Run ${name} --yes to remove the previewed paths.`,
+            );
+            return;
+        }
+        const result = await removeAgentDirectory(directory, targets);
+        ctx.ui.notify(
+            [
+                ...result.completed.map((target) => `${name}: completed remove: ${target}`),
+                ...result.failed.map(
+                    ({ path: target, error }) =>
+                        `${name}: failed remove: ${target}: ${error}. Fix the path and run ${name} again.`,
+                ),
+            ].join("\n"),
+            result.failed.length > 0 ? "error" : "info",
+        );
+    } catch (error: unknown) {
+        const detail = error instanceof Error ? error.message : "an unknown error occurred";
+        ctx.ui.notify(
+            `${name}: ${directory}: ${detail}. Check the agent directory and try again.`,
+            "error",
+        );
     }
 }
